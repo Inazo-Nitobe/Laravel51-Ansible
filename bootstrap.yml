@@ -1,0 +1,61 @@
+- hosts: all
+  sudo: yes
+  remote_user: vagrant
+  tasks:
+    - name: setup yum repository.
+      yum: name={{ item }} state=installed
+      with_items:
+        - http://ftp-srv2.kddilabs.jp/Linux/distributions/fedora/epel/6/i386/epel-release-6-8.noarch.rpm
+        - http://rpms.famillecollet.com/enterprise/remi-release-6.rpm
+        - https://dev.mysql.com/get/mysql57-community-release-el6-11.noarch.rpm
+
+    - name: install libselinux-python
+      yum: name=libselinux-python state=installed
+
+    - name: install php.
+      yum: name={{ item }} enablerepo=remi,remi-php56 state=installed
+      with_items:
+        - php
+        - php-mcrypt
+        - php-mbstring
+        - php-pdo
+        - php-mysqlnd
+        - php-tokenizer
+        - php-xml
+        - php-pecl-xdebug
+        - man
+        - man-pages.noarch
+
+    - name: setup mysql repo
+      copy: src=./configs/mysql-community.repo dest=/etc/yum.repos.d owner=root mode=0644 backup=yes
+
+    - name: install mysql.
+      yum: name=mysql-server enablerepo=mysql56-community state=installed
+
+    - name: setup php for remote debug.
+      copy: src=./configs/15-xdebug.ini dest=/etc/php.d owner=root mode=0644 backup=yes
+
+    - name: setup php for remote debug for cli.
+      copy: src=./configs/.bashrc dest=/home/vagrant owner=vagrant mode=0644 backup=yes
+
+    - name: setup mod rewrite.
+      copy: src=./configs/httpd.conf dest=/etc/httpd/conf/httpd.conf owner=root mode=0644 backup=yes
+
+    - name: setup document root.
+      shell: creates=/var/www/html/.gitkeep rmdir /var/www/html; ln -s /vagrant_data/public /var/www/html
+
+    - name: setup composer.
+      shell: creates=/usr/local/bin/composer curl -sS https://getcomposer.org/installer | php; mv composer.phar /usr/local/bin/composer
+
+    - name: launch services.
+      service: name={{ item }} state=started enabled=yes
+      with_items:
+        - httpd
+        - mysqld
+
+- hosts: all
+  sudo: no
+  remote_user: vagrant
+  tasks:
+    - name: setup composer/prestissimo.
+      shell: creates=/home/vagrant/.composer/composer.json composer global require hirak/prestissimo
